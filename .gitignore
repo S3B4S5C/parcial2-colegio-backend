@@ -1,0 +1,77 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Django stuff:
+*.log
+*.pot
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+db.sqlite3
+media/
+staticfiles/
+static/
+
+# Django migrations
+**/migrations/
+!**/migrations/__init__.py
+
+# Environment
+.env
+.env.*
+
+# VSCode
+.vscode/
+
+# Pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# PyCharm
+.idea/
+
+# macOS
+.DS_Store
+
+# Node (if using for frontend assets)
+node_modules/
+
+# Docker
+*.pid
+
+# Coverage
+.coverage
+*.cover
+coverage.xml
+coverage_html_report/
+.cache
+
+# Virtual env
+venv/
+ENV/
+env/
+.venv/
+
+# pip tools
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Local test reports
+test-results/
+
+# System-specific
+Thumbs.db
+ehthumbs.db
+Desktop.ini
