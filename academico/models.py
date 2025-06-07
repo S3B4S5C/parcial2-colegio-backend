@@ -28,7 +28,7 @@ class Gestion(models.Model):
         ordering = ['anio', 'trimestre']
 
     def __str__(self):
-        return f'{self.anio} - {self.semestre}'
+        return f'{self.anio} - {self.trimestre}'
 
 
 class Curso(models.Model):
