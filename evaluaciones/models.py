@@ -47,7 +47,7 @@ class Participacion(models.Model):
     observacion = models.TextField(blank=True, null=True)
 
     def __str__(self):
-        return f'Participacion: {self.asistencia.alumno.usuario.username} - {self.asistencia.horario.dia.nombre} - {self.asistencia.fecha} - Observacion: {self.observacion}'
+        return f'Participacion: {self.asistencia.alumno.usuario.username} - {self.asistencia.horario} - {self.asistencia.fecha} - Observacion: {self.observacion}'
 
 
 class EntregaTarea(models.Model):

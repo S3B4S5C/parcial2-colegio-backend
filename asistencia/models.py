@@ -18,7 +18,6 @@ class Dia(models.Model):
 
 
 class Horario(models.Model):
-    dia = models.ForeignKey(Dia, on_delete=models.CASCADE, related_name='horarios')
     clase = models.ForeignKey(
         'academico.Clase',
         on_delete=models.CASCADE,
@@ -31,11 +30,23 @@ class Horario(models.Model):
     )
 
     class Meta:
-        unique_together = ('dia', 'clase', 'profesor_materia')
+        unique_together = ('clase', 'profesor_materia')
 
     def __str__(self):
-        return f'Horario: {self.dia.nombre} - Clase: {self.clase} - Profesor: {self.profesor_materia.profesor.usuario.username}'
-    
+        dias = ', '.join(hd.dia.nombre for hd in self.horarios_dias.select_related('dia').all())
+        return (
+            f'Horario: [{dias}] - Clase: {self.clase} '
+            f'- Profesor: {self.profesor_materia.profesor.usuario.username}'
+        )
+
+
+class HorarioDia(models.Model):
+    dia = models.ForeignKey(Dia, on_delete=models.CASCADE, related_name='horarios_dias')
+    horario = models.ForeignKey(Horario, on_delete=models.CASCADE, related_name='horarios_dias')
+
+    class Meta:
+        unique_together = ('dia', 'horario')
+
 
 class Periodo(models.Model):
     horario = models.ForeignKey(Horario, on_delete=models.CASCADE, related_name='periodos')
@@ -64,5 +75,5 @@ class Asistencia(models.Model):
         unique_together = ('horario', 'alumno', 'fecha')
 
     def __str__(self):
-        return f'Asistencia: {self.alumno.usuario.username} - {self.horario.dia.nombre} - {self.fecha} - {self.estado}'
+        return f'Asistencia: {self.alumno.usuario.username} - {self.horario} - {self.fecha} - {self.estado}'
     
