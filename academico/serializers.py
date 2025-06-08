@@ -6,7 +6,7 @@ from usuarios.serializers import ProfesorSerializer, AlumnoSerializer
 class MateriaSerializer(serializers.ModelSerializer):
     class Meta:
         model = Materia
-        fields = ['id', 'nombre']
+        fields = ['id', 'nombre', 'activo']
 
 
 class AsignacionProfesorMateriaSerializer(serializers.ModelSerializer):
@@ -42,8 +42,21 @@ class ClaseSerializer(serializers.ModelSerializer):
 class InscripcionSerializer(serializers.ModelSerializer):
     alumno = AlumnoSerializer(read_only=True)
     clase = ClaseSerializer(read_only=True)
+    promedio = serializers.SerializerMethodField()
 
     class Meta:
         model = Inscripcion
-        fields = ['id', 'alumno', 'clase', 'nota']
-        read_only_fields = ['alumno', 'clase'] 
+        fields = [
+            'id',
+            'alumno',
+            'clase',
+            'nota_ser',
+            'nota_saber',
+            'nota_hacer',
+            'nota_decidir',
+            'promedio',
+        ]
+        read_only_fields = ['alumno', 'clase']
+
+    def get_promedio(self, obj):
+        return obj.promedio
