@@ -25,5 +25,7 @@ urlpatterns = [
     path('login/', LoginView, name='login'),
     path('usuarios/', include('usuarios.urls')),
     path('academico/', include('academico.urls')),
+    path('asistencia/', include('asistencia.urls')),
+    path('evaluaciones/', include('evaluaciones.urls')),
 ]
 

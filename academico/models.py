@@ -3,6 +3,7 @@ from django.db import models
 
 class Materia(models.Model):
     nombre = models.CharField(max_length=100, unique=True)
+    activo = models.BooleanField(default=True)
 
     def __str__(self):
         return self.nombre
@@ -53,7 +54,24 @@ class Clase(models.Model):
 class Inscripcion(models.Model):
     alumno = models.ForeignKey('usuarios.Alumno', on_delete=models.CASCADE, related_name='inscripciones')
     clase = models.ForeignKey(Clase, on_delete=models.CASCADE, related_name='inscripciones')
-    nota = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    nota_ser = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    nota_saber = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    nota_hacer = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    nota_decidir = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+
+    @property
+    def promedio(self):
+        notas = [
+            self.nota_ser,
+            self.nota_saber,
+            self.nota_hacer,
+            self.nota_decidir,
+        ]
+        notas = [n for n in notas if n is not None]
+        return sum(notas) / len(notas) if notas else None
+
+    def __str__(self):
+        return f"{self.alumno.usuario.username} - {self.clase}"
 
     class Meta:
         unique_together = ('alumno', 'clase')

@@ -3,6 +3,8 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 from usuarios.permissions import has_role
 from academico.models import AsignacionProfesorMateria, Clase, Inscripcion
+from asistencia.models import Horario, Asistencia
+from django.utils import timezone
 from academico.serializers import ClaseSerializer, InscripcionSerializer
 from usuarios.serializers import AlumnoSerializer
 from usuarios.models import Alumno
@@ -20,10 +22,12 @@ def get_my_alumnos(request):
     clases = Clase.objects.filter(horarios__profesor_materia__in=asignaciones).distinct()
 
     # Obtener alumnos inscritos a esas clases
-    inscripciones = Inscripcion.objects.filter(clase__in=clases).select_related('alumno')
-    alumnos = [inscripcion.alumno for inscripcion in inscripciones]
+    inscripciones = (
+        Inscripcion.objects.filter(clase__in=clases)
+        .select_related('alumno', 'clase__curso', 'clase__gestion')
+    )
 
-    serializer = AlumnoSerializer(alumnos, many=True)
+    serializer = InscripcionSerializer(inscripciones, many=True)
     return Response(serializer.data)
 
 
@@ -95,3 +99,49 @@ def get_notas_by_alumno(request, alumno_id):
         })
 
     return Response(notas)
+
+
+@api_view(['PUT'])
+@permission_classes([IsAuthenticated])
+@has_role('profesor')
+def registrar_notas(request, inscripcion_id):
+    """Registrar o actualizar notas para una inscripción."""
+    profesor = request.user.profesor
+    try:
+        inscripcion = Inscripcion.objects.select_related('clase').get(id=inscripcion_id)
+    except Inscripcion.DoesNotExist:
+        return Response({'detail': 'Inscripción no encontrada'}, status=404)
+
+    # Verificar que el profesor tenga esa clase asignada
+    asignaciones = AsignacionProfesorMateria.objects.filter(profesor=profesor)
+    if not Horario.objects.filter(clase=inscripcion.clase, profesor_materia__in=asignaciones).exists():
+        return Response({'detail': 'No autorizado'}, status=403)
+
+    for campo in ['nota_ser', 'nota_saber', 'nota_hacer', 'nota_decidir']:
+        valor = request.data.get(campo)
+        if valor is not None:
+            try:
+                valor = float(valor)
+            except ValueError:
+                return Response({'detail': f'Valor inválido para {campo}'}, status=400)
+            if valor < 0 or valor > 100:
+                return Response({'detail': 'Las notas deben estar entre 0 y 100'}, status=400)
+            setattr(inscripcion, campo, valor)
+
+    inscripcion.save()
+    return Response(InscripcionSerializer(inscripcion).data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+@has_role('alumno')
+def mis_notas(request):
+    """Mostrar la libreta de calificaciones del alumno autenticado."""
+    alumno = request.user.alumno
+    inscripciones = (
+        Inscripcion.objects.filter(alumno=alumno)
+        .select_related('clase__curso', 'clase__gestion')
+    )
+    serializer = InscripcionSerializer(inscripciones, many=True)
+    return Response(serializer.data)
+
