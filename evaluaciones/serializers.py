@@ -30,8 +30,7 @@ class ExamenSerializer(serializers.ModelSerializer):
 class ParticipacionSerializer(serializers.ModelSerializer):
     alumno = serializers.CharField(source='asistencia.alumno.usuario.username', read_only=True)
     fecha = serializers.DateField(source='asistencia.fecha', read_only=True)
-    dia = serializers.CharField(source='asistencia.horario.dia.nombre', read_only=True)
 
     class Meta:
         model = Participacion
-        fields = ['id', 'asistencia', 'alumno', 'fecha', 'dia', 'observacion']
+        fields = ['id', 'asistencia', 'alumno', 'fecha', 'observacion']

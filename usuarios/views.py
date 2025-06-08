@@ -1,11 +1,25 @@
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
-from .serializers import AlumnoSerializer, RegisterSerializer, LoginSerializer, UsuarioSerializer
+from .serializers import AlumnoSerializer, ProfesorSerializer, RegisterSerializer, LoginSerializer, UsuarioSerializer
 from .models import Alumno, Profesor
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from django.db.transaction import atomic as transaction_atomic
+from rest_framework import viewsets
+
+class UsuarioViewSet(viewsets.ModelViewSet):
+    queryset = Alumno.objects.all()
+    serializer_class = UsuarioSerializer
+
+class ProfesorViewSet(viewsets.ModelViewSet):
+    queryset = Profesor.objects.all()
+    serializer_class = ProfesorSerializer
+
+class AlumnoViewSet(viewsets.ModelViewSet):
+    queryset = Alumno.objects.all()
+    serializer_class = AlumnoSerializer
+
 
 def get_tokens_for_user(user):
     refresh = RefreshToken.for_user(user)

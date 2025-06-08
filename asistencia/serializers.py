@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Dia, Horario, Periodo, Asistencia
+from .models import Dia, Horario, Periodo, Asistencia, HorarioDia
 
 # Serializer básico para Dia
 class DiaSerializer(serializers.ModelSerializer):
@@ -8,13 +8,23 @@ class DiaSerializer(serializers.ModelSerializer):
         fields = ['id', 'nombre']
 
 
+class HorarioDiaSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = HorarioDia
+        fields = ['id', 'dia', 'horario']
+
+
 # Serializer para Horario
 class HorarioSerializer(serializers.ModelSerializer):
-    dia = DiaSerializer(read_only=True)
+    dias = serializers.SerializerMethodField()
 
     class Meta:
         model = Horario
-        fields = ['id', 'dia', 'clase', 'profesor_materia']
+        fields = ['id', 'clase', 'profesor_materia', 'dias']
+
+    def get_dias(self, obj):
+        return [hd.dia.nombre for hd in obj.horarios_dias.select_related('dia').all()]
+
 
 
 # Serializer para Periodo
