@@ -58,6 +58,8 @@ python manage.py runserver
 
 Luego visita [http://localhost:8000](http://localhost:8000) en tu navegador para ver la aplicación en acción.
 
+La documentación interactiva de la API estará disponible en [http://localhost:8000/swagger/](http://localhost:8000/swagger/).
+
 ---
 
 ## Población de datos (Opcional)
