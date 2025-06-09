@@ -2,6 +2,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 from rest_framework import viewsets
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
 from usuarios.permissions import has_role
 from .models import AsignacionProfesorMateria, Clase, Inscripcion, Curso, Gestion, Materia, NotaMateria
 from .serializers import ClaseSerializer, InscripcionSerializer, CursoSerializer, GestionSerializer, AsignacionProfesorMateriaSerializer, MateriaSerializer, NotaMateriaSerializer
@@ -12,29 +14,40 @@ from asistencia.serializers import HorarioSerializer
 from evaluaciones.models import Tarea, Examen, EntregaTarea, ResultadoExamen
 
 class CursoViewSet(viewsets.ModelViewSet):
+    """CRUD de cursos del colegio."""
     queryset = Curso.objects.all()
     serializer_class = CursoSerializer
 
 class GestionViewSet(viewsets.ModelViewSet):
+    """Gestiona las gestiones académicas."""
     queryset = Gestion.objects.all()
     serializer_class = GestionSerializer
 
 class ClaseViewSet(viewsets.ModelViewSet):
+    """CRUD de clases."""
     queryset = Clase.objects.all()
     serializer_class = ClaseSerializer
 
 class MateriaViewSet(viewsets.ModelViewSet):
+    """Operaciones sobre materias."""
     queryset = Materia.objects.all()
     serializer_class = MateriaSerializer
 
 class AsignacionProfesorMateriaViewSet(viewsets.ModelViewSet):
+    """Relaciona profesores con materias."""
     queryset = AsignacionProfesorMateria.objects.all()
     serializer_class = AsignacionProfesorMateriaSerializer
 
+@swagger_auto_schema(
+    method='get',
+    responses={200: InscripcionSerializer(many=True)},
+    operation_summary="Listar mis alumnos"
+)
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 @has_role('profesor')
 def get_my_alumnos(request):
+    """Lista los alumnos de las clases del profesor autenticado."""
     usuario = request.user
     profesor = usuario.profesor
 
@@ -58,10 +71,16 @@ def get_my_alumnos(request):
     return Response(serializer.data)
 
 
+@swagger_auto_schema(
+    method='get',
+    responses={200: AlumnoSerializer(many=True)},
+    operation_summary="Alumnos por horario"
+)
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 @has_role('profesor')
 def get_alumnos_by_horario(request, horario_id):
+    """Obtiene alumnos según un horario específico."""
     usuario = request.user
 
     profesor = usuario.profesor
@@ -83,10 +102,16 @@ def get_alumnos_by_horario(request, horario_id):
     return Response(serializer.data)
 
 
+@swagger_auto_schema(
+    method='get',
+    responses={200: ClaseSerializer()},
+    operation_summary="Clase por horario"
+)
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 @has_role('profesor')
 def get_clases_by_horario(request, horario_id):
+    """Devuelve la clase asociada a un horario."""
     usuario = request.user
 
     profesor = usuario.profesor
@@ -104,6 +129,11 @@ def get_clases_by_horario(request, horario_id):
     return Response(serializer.data)
 
 
+@swagger_auto_schema(
+    method='get',
+    responses={200: openapi.Response('Listado de notas')},
+    operation_summary="Notas por alumno"
+)
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsAdminUser])
 def get_notas_by_alumno(request, alumno_id):
@@ -128,6 +158,12 @@ def get_notas_by_alumno(request, alumno_id):
     return Response(notas)
 
 
+@swagger_auto_schema(
+    method='put',
+    request_body=InscripcionSerializer,
+    responses={200: InscripcionSerializer},
+    operation_summary="Registrar notas"
+)
 @api_view(['PUT'])
 @permission_classes([IsAuthenticated])
 @has_role('profesor')
@@ -159,6 +195,11 @@ def registrar_notas(request, inscripcion_id):
     return Response(InscripcionSerializer(inscripcion).data)
 
 
+@swagger_auto_schema(
+    method='get',
+    responses={200: InscripcionSerializer(many=True)},
+    operation_summary="Mis notas"
+)
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 @has_role('alumno')
@@ -173,9 +214,15 @@ def mis_notas(request):
     return Response(serializer.data)
 
 
+@swagger_auto_schema(
+    method='get',
+    responses={200: ClaseSerializer(many=True)},
+    operation_summary="Mis clases"
+)
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def mis_clases(request):
+    """Devuelve las clases asignadas al profesor autenticado."""
     # 1. Obtener la gestión actual
     gestion_actual = Gestion.objects.latest('anio', 'trimestre')
     
@@ -198,6 +245,12 @@ def mis_clases(request):
     return Response(serializer.data)
 
 
+@swagger_auto_schema(
+    method='post',
+    request_body=HorarioSerializer,
+    responses={201: HorarioSerializer},
+    operation_summary="Asignar profesor_materia a clase"
+)
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def asignar_profesor_materia_a_clase(request):
@@ -223,6 +276,12 @@ def asignar_profesor_materia_a_clase(request):
     return Response(serializer.data, status=201 if created else 200)
 
 
+@swagger_auto_schema(
+    method='post',
+    request_body=AsignacionProfesorMateriaSerializer,
+    responses={201: AsignacionProfesorMateriaSerializer},
+    operation_summary="Asignar materia a profesor"
+)
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def asignar_materia_a_profesor(request):
@@ -244,6 +303,12 @@ def asignar_materia_a_profesor(request):
     return Response(serializer.data, status=201 if created else 200)
 
 
+@swagger_auto_schema(
+    method='post',
+    request_body=InscripcionSerializer,
+    responses={201: InscripcionSerializer},
+    operation_summary="Inscribir alumno a clase"
+)
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def inscribir_alumno_a_clase(request):
@@ -265,10 +330,20 @@ def inscribir_alumno_a_clase(request):
     return Response(serializer.data, status=201 if created else 200)
 
 
+@swagger_auto_schema(
+    method='get',
+    manual_parameters=[
+        openapi.Parameter('materia_id', openapi.IN_QUERY, description='ID de la materia', type=openapi.TYPE_INTEGER, required=True),
+        openapi.Parameter('gestion_id', openapi.IN_QUERY, description='ID de la gestión (opcional)', type=openapi.TYPE_INTEGER, required=False),
+    ],
+    responses={200: openapi.Response('Alumnos de materia')},
+    operation_summary="Desempeño de alumnos por materia"
+)
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 @has_role('profesor')
 def alumnos_de_materia(request):
+    """Muestra el desempeño de los alumnos en una materia."""
     profesor = request.user.profesor
     materia_id = request.GET.get('materia_id')
     gestion_id = request.GET.get('gestion_id')
@@ -350,9 +425,19 @@ def alumnos_de_materia(request):
     return Response(resultado)
 
 
+@swagger_auto_schema(
+    method='get',
+    manual_parameters=[
+        openapi.Parameter('materia_id', openapi.IN_QUERY, description='ID de la materia', type=openapi.TYPE_INTEGER, required=True),
+        openapi.Parameter('gestion_id', openapi.IN_QUERY, description='ID de la gestión (opcional)', type=openapi.TYPE_INTEGER, required=False),
+    ],
+    responses={200: NotaMateriaSerializer(many=True)},
+    operation_summary="Mis notas de una materia"
+)
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def mis_notas_materia(request):
+    """Notas del alumno en una materia y gestión determinada."""
     alumno = request.user.alumno  # Asume que el usuario es un alumno
     materia_id = request.GET.get('materia_id')
     gestion_id = request.GET.get('gestion_id')
@@ -384,9 +469,18 @@ def mis_notas_materia(request):
     return Response(serializer.data)
 
 
+@swagger_auto_schema(
+    method='get',
+    manual_parameters=[
+        openapi.Parameter('gestion_id', openapi.IN_QUERY, description='ID de la gestión (opcional)', type=openapi.TYPE_INTEGER, required=False)
+    ],
+    responses={200: openapi.Response('Libreta completa')},
+    operation_summary="Mi libreta"
+)
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def mi_libreta(request):
+    """Libreta de calificaciones completa del alumno autenticado."""
     alumno = request.user.alumno  # Asume que el usuario es un alumno
     gestion_id = request.GET.get('gestion_id')
 

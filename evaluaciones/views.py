@@ -4,8 +4,19 @@ from rest_framework.response import Response
 from usuarios.permissions import has_role
 from .models import Participacion
 from asistencia.models import Asistencia
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
 
 
+@swagger_auto_schema(
+    method='post',
+    request_body=openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        properties={'observacion': openapi.Schema(type=openapi.TYPE_STRING)},
+    ),
+    responses={200: openapi.Response('Participación registrada')},
+    operation_summary="Registrar participación"
+)
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 @has_role('profesor')

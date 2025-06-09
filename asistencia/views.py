@@ -4,8 +4,22 @@ from rest_framework.response import Response
 from django.utils import timezone
 from usuarios.permissions import has_role
 from .models import Horario, Asistencia
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
 
 
+@swagger_auto_schema(
+    method='post',
+    request_body=openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        properties={
+            'fecha': openapi.Schema(type=openapi.TYPE_STRING, format='date'),
+            'asistencias': openapi.Schema(type=openapi.TYPE_ARRAY, items=openapi.Items(type=openapi.TYPE_OBJECT)),
+        },
+    ),
+    responses={200: openapi.Response('Asistencia registrada')},
+    operation_summary="Registrar asistencia"
+)
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 @has_role('profesor')
