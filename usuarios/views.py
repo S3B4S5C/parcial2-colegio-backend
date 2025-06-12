@@ -2,13 +2,14 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from .serializers import AlumnoSerializer, ProfesorSerializer, RegisterSerializer, LoginSerializer, UsuarioSerializer
-from .models import Alumno, Profesor
+from .models import Alumno, Profesor, PrediccionRendimiento
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from django.db.transaction import atomic as transaction_atomic
 from rest_framework import viewsets
 from drf_yasg.utils import swagger_auto_schema
-from drf_yasg import openapi
+from academico.models import Materia, Gestion
+import joblib
 
 class UsuarioViewSet(viewsets.ModelViewSet):
     """API CRUD para usuarios generales."""
@@ -100,6 +101,7 @@ def RegisterProfesorView(request):
             status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
 @swagger_auto_schema(
     method='post',
     request_body=RegisterSerializer,
@@ -120,7 +122,6 @@ def RegisterAlumnoView(request):
             "user": UsuarioSerializer(user).data
         }, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
 
 
 @swagger_auto_schema(

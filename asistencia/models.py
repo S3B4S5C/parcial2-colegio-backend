@@ -61,7 +61,7 @@ class Periodo(models.Model):
 class Asistencia(models.Model):
     horario = models.ForeignKey(Horario, on_delete=models.CASCADE, related_name='asistencias')
     alumno = models.ForeignKey('usuarios.Alumno', on_delete=models.CASCADE, related_name='asistencias')
-    fecha = models.DateField(auto_now_add=True)
+    fecha = models.DateField()
     estado = models.CharField(
         choices=(
             ('Presente', 'Presente'),

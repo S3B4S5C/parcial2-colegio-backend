@@ -1,15 +1,21 @@
 # serializers.py
 from rest_framework import serializers
 from django.contrib.auth import authenticate
-from .models import Usuario, Profesor, Alumno, Tutor, Tutoria
+from .models import Usuario, Profesor, Alumno, Tutor, Tutoria, DatosPersonales
+
+
+class DatosPersonalesSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DatosPersonales
+        fields = ['id', 'nombre', 'apellido', 'telefono']
 
 
 class UsuarioSerializer(serializers.ModelSerializer):
     rol = serializers.SerializerMethodField()
-
+    datos_personales = DatosPersonalesSerializer()
     class Meta:
         model = Usuario
-        fields = ['id', 'username', 'correo', 'rol']
+        fields = ['id', 'username', 'correo', 'rol', 'datos_personales']
 
     def get_rol(self, obj):
         if hasattr(obj, 'profesor'):
@@ -19,6 +25,7 @@ class UsuarioSerializer(serializers.ModelSerializer):
         elif hasattr(obj, 'tutor'):
             return 'tutor'
         return 'sin rol'
+
 
 class ProfesorSerializer(serializers.ModelSerializer):
     usuario = UsuarioSerializer()
@@ -45,12 +52,12 @@ class TutorSerializer(serializers.ModelSerializer):
 
 
 class TutoriaSerializer(serializers.ModelSerializer):
-    profesor = ProfesorSerializer()
+    tutor = TutorSerializer()
     alumno = AlumnoSerializer()
 
     class Meta:
         model = Tutoria
-        fields = ['id', 'profesor', 'alumno']
+        fields = ['id', 'tutor', 'alumno']
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -79,3 +86,4 @@ class LoginSerializer(serializers.Serializer):
             raise serializers.ValidationError('La cuenta está desactivada')
         data['user'] = user
         return data
+

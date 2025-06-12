@@ -97,8 +97,8 @@ alumnos = list(Alumno.objects.all())
 
 # Crear tutorías (aleatoriamente profesor y tutor)
 for alumno in alumnos:
-    profesor_tutor = random.choice(profesores)
-    tutorias.append(Tutoria(profesor=profesor_tutor, alumno=alumno))
+    tutor = random.choice(tutores)
+    tutorias.append(Tutoria(tutor=tutor, alumno=alumno))
 Tutoria.objects.bulk_create(tutorias)
 print(f"✅ {len(tutorias)} tutorías creadas")
 

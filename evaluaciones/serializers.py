@@ -1,36 +1,42 @@
 from rest_framework import serializers
-from .models import Tarea, Examen, Participacion
+from .models import Tarea, Examen, Participacion, EntregaTarea, ResultadoExamen
+from academico.serializers import AsignacionProfesorMateriaSerializer
+from asistencia.serializers import AsistenciaSerializer
+from usuarios.serializers import AlumnoSerializer
+
 
 class TareaSerializer(serializers.ModelSerializer):
-    profesor = serializers.CharField(source='profesor_materia.profesor.usuario.username', read_only=True)
-
+    profesor_materia = AsignacionProfesorMateriaSerializer(read_only=True)
     class Meta:
         model = Tarea
-        fields = [
-            'id', 'titulo', 'descripcion', 'fecha', 'fecha_entrega',
-            'fecha_limite', 'nota', 'estado', 'observacion',
-            'profesor_materia', 'profesor', 'clase'
-        ]
-        read_only_fields = ['fecha']
+        fields = ['id', 'titulo', 'descripcion', 'profesor_materia', 'clase', 'fecha', 'fecha_entrega', 'fecha_limite']
 
 
 class ExamenSerializer(serializers.ModelSerializer):
-    profesor = serializers.CharField(source='profesor_materia.profesor.usuario.username', read_only=True)
-
+    profesor_materia = AsignacionProfesorMateriaSerializer(read_only=True)
     class Meta:
         model = Examen
-        fields = [
-            'id', 'titulo', 'descripcion', 'fecha', 'nota',
-            'estado', 'observacion', 'profesor_materia', 'profesor',
-            'clase'
-        ]
-        read_only_fields = ['fecha']
+        fields = ['id', 'titulo', 'descripcion', 'profesor_materia', 'clase', 'fecha']
 
 
 class ParticipacionSerializer(serializers.ModelSerializer):
-    alumno = serializers.CharField(source='asistencia.alumno.usuario.username', read_only=True)
-    fecha = serializers.DateField(source='asistencia.fecha', read_only=True)
-
+    asistencia = AsistenciaSerializer(read_only=True)
     class Meta:
         model = Participacion
-        fields = ['id', 'asistencia', 'alumno', 'fecha', 'observacion']
+        fields = ['id', 'asistencia', 'observacion']
+
+
+class EntregaTareaSerializer(serializers.ModelSerializer):
+    tarea = TareaSerializer(read_only=True)
+    alumno = AlumnoSerializer(read_only=True)
+    class Meta:
+        model = EntregaTarea
+        fields = ['id', 'tarea', 'alumno', 'fecha_entrega', 'archivo', 'nota', 'estado', 'observacion']
+
+
+class ResultadoExamenSerializer(serializers.ModelSerializer):
+    examen = ExamenSerializer(read_only=True)
+    alumno = AlumnoSerializer(read_only=True)
+    class Meta:
+        model = ResultadoExamen
+        fields = ['id', 'examen', 'alumno', 'nota', 'estado', 'observacion']

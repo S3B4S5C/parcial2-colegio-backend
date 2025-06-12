@@ -8,10 +8,16 @@ from usuarios.permissions import has_role
 from .models import AsignacionProfesorMateria, Clase, Inscripcion, Curso, Gestion, Materia, NotaMateria
 from .serializers import ClaseSerializer, InscripcionSerializer, CursoSerializer, GestionSerializer, AsignacionProfesorMateriaSerializer, MateriaSerializer, NotaMateriaSerializer
 from usuarios.serializers import AlumnoSerializer
-from usuarios.models import Alumno, Profesor
-from asistencia.models import Horario, Dia
+from usuarios.models import Alumno, Profesor, Tutoria
+from asistencia.models import Horario, Dia, Asistencia
 from asistencia.serializers import HorarioSerializer
 from evaluaciones.models import Tarea, Examen, EntregaTarea, ResultadoExamen
+from django.db.models import Avg, Q
+from utils.ml_model import get_ml_model
+import numpy as np
+from datetime import date, time
+from django.utils import timezone
+
 
 class CursoViewSet(viewsets.ModelViewSet):
     """CRUD de cursos del colegio."""
@@ -505,3 +511,297 @@ def mi_libreta(request):
         resultado.append(data)
 
     return Response(resultado)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+@has_role('profesor')
+def mis_horarios(request):
+    """Devuelve los horarios asignados al profesor autenticado."""
+    profesor = request.user.profesor
+    horarios = Horario.objects.filter(profesor_materia__profesor=profesor)
+    serializer = HorarioSerializer(horarios, many=True)
+    return Response(serializer.data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+@has_role('profesor')
+def dashboard_profesor(request):
+    user = request.user
+    profesor = user.profesor
+
+    gestion_id = request.GET.get('gestion_id')
+    trimestre = request.GET.get('trimestre')
+    ml_model = get_ml_model()
+
+    # Determinar gestión
+    if gestion_id:
+        gestion = Gestion.objects.get(pk=gestion_id)
+    else:
+        gestion = Gestion.objects.latest('anio', 'trimestre')
+
+    # Filtrar horarios del docente en esa gestión (opcional trimestre)
+    horarios = Horario.objects.filter(
+        profesor_materia__profesor=profesor,
+        clase__gestion=gestion
+    )
+    if trimestre:
+        horarios = horarios.filter(clase__gestion__trimestre=trimestre)
+
+    resultados = []
+    for horario in horarios.select_related('clase', 'profesor_materia__materia'):
+        notas_qs = NotaMateria.objects.filter(horario=horario)
+        alumnos = notas_qs.values_list('alumno', flat=True)
+        alumnos_bajo = []
+        for alumno_id in alumnos:
+            # Extrae features para el modelo ML
+            ex_prom = ResultadoExamen.objects.filter(
+                alumno_id=alumno_id, examen__clase=horario.clase, examen__profesor_materia=horario.profesor_materia
+            ).aggregate(avg=Avg('nota'))['avg'] or 0
+
+            ta_prom = EntregaTarea.objects.filter(
+                alumno_id=alumno_id, tarea__clase=horario.clase, tarea__profesor_materia=horario.profesor_materia
+            ).aggregate(avg=Avg('nota'))['avg'] or 0
+
+            asis_total = Asistencia.objects.filter(horario=horario, alumno_id=alumno_id).count()
+            asis_present = Asistencia.objects.filter(horario=horario, alumno_id=alumno_id, estado='Presente').count()
+            asis_pct = asis_present / asis_total if asis_total else 0
+
+            X = np.array([[ex_prom, ta_prom, asis_pct]])
+            pred = ml_model.predict(X)[0]  # 0: bajo
+
+            if pred == 0:
+                alumno_obj = NotaMateria.objects.get(horario=horario, alumno_id=alumno_id).alumno
+                alumno_data = AlumnoSerializer(alumno_obj).data
+                alumnos_bajo.append({
+                    "alumno": alumno_data,
+                    "examenes_prom": ex_prom,
+                    "tareas_prom": ta_prom,
+                    "asistencia_pct": round(asis_pct*100, 2),
+                })
+        if alumnos_bajo:
+            resultados.append({
+                "curso": horario.clase.curso.curso,
+                "paralelo": horario.clase.paralelo,
+                "clase_id": horario.clase.id,
+                "materia": horario.profesor_materia.materia.nombre,
+                "horario_id": horario.id,
+                "alumnos_bajo_rendimiento": alumnos_bajo,
+            })
+
+    # ------------- Próximas clases del profesor (hoy/futuras) ---------------
+    # 1. Día de hoy
+    hoy = date.today()
+    ahora = timezone.localtime().time() if hasattr(timezone, 'localtime') else time()
+    nombre_dia = hoy.strftime('%A')
+    nombre_dia_es = {
+        'Monday': 'Lunes', 'Tuesday': 'Martes', 'Wednesday': 'Miercoles', 'Thursday': 'Jueves',
+        'Friday': 'Viernes', 'Saturday': 'Sabado', 'Sunday': 'Domingo'
+    }[nombre_dia]
+
+    # Horarios donde tiene clase hoy o en adelante (opcional: solo clases futuras de hoy)
+    horarios_hoy = horarios.filter(
+        horarios_dias__dia__nombre=nombre_dia_es
+    ).distinct().select_related('clase', 'profesor_materia')
+
+    # Traer los periodos (horas) de esas clases y filtrar por hora futura
+    from asistencia.serializers import HorarioSerializer
+    clases_proximas = []
+    for horario in horarios_hoy:
+        periodos = list(horario.periodos.order_by('hora_inicial'))
+        for periodo in periodos:
+            # Solo periodos futuros o actuales
+            if periodo.hora_inicial >= ahora:
+                clase_data = HorarioSerializer(horario).data
+                clase_data['periodo'] = {
+                    "numero": periodo.numero,
+                    "hora_inicial": periodo.hora_inicial,
+                    "hora_final": periodo.hora_final
+                }
+                clases_proximas.append(clase_data)
+
+    # ------------- Tareas pendientes por revisar (no calificadas) ---------------
+    from evaluaciones.serializers import EntregaTareaSerializer
+    tareas_pendientes = EntregaTarea.objects.filter(
+        tarea__profesor_materia__profesor=profesor,
+        estado__in=['entregada', 'pendiente']
+    ).select_related('tarea', 'alumno').order_by('-fecha_entrega')[:10]
+
+    tareas_serializer = EntregaTareaSerializer(tareas_pendientes, many=True)
+
+    return Response({
+        "resultados": resultados,
+        "clases_proximas": clases_proximas,
+        "tareas_pendientes": tareas_serializer.data,
+    })
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+@has_role('alumno')
+def dashboard_estudiante(request):
+    user = request.user
+    alumno = user.alumno
+    gestion_id = request.GET.get('gestion_id')
+    materia_id = request.GET.get('materia_id')
+    ml_model = get_ml_model()  # Debes tener una función que te de el modelo ML ya cargado
+    ultima_gestion = Gestion.objects.latest('anio', 'trimestre')
+    
+    # -------- 1. Materias de bajo rendimiento ----------
+    notas_qs = NotaMateria.objects.filter(alumno=alumno)
+    if gestion_id:
+        notas_qs = notas_qs.filter(horario__clase__gestion_id=gestion_id)
+    if materia_id:
+        notas_qs = notas_qs.filter(horario__profesor_materia__materia_id=materia_id)
+
+    materias_bajo = []
+    for nota in notas_qs.select_related('horario__profesor_materia__materia', 'horario__clase'):
+        horario = nota.horario
+        ex_prom = ResultadoExamen.objects.filter(
+            alumno=alumno, examen__clase=horario.clase, examen__profesor_materia=horario.profesor_materia
+        ).aggregate(avg=Avg('nota'))['avg'] or 0
+        ta_prom = EntregaTarea.objects.filter(
+            alumno=alumno, tarea__clase=horario.clase, tarea__profesor_materia=horario.profesor_materia
+        ).aggregate(avg=Avg('nota'))['avg'] or 0
+        asis_total = Asistencia.objects.filter(horario=horario, alumno=alumno).count()
+        asis_present = Asistencia.objects.filter(horario=horario, alumno=alumno, estado='Presente').count()
+        asis_pct = asis_present / asis_total if asis_total else 0
+
+        # --- Predecir con ML ---
+        X = np.array([[ex_prom, ta_prom, asis_pct]])
+        pred = ml_model.predict(X)[0]  # 0: bajo, 1: regular, 2: bueno
+
+        if pred == 0:  # Bajo rendimiento
+            materias_bajo.append({
+                "materia_id": nota.horario.profesor_materia.materia.id,
+                "materia": nota.horario.profesor_materia.materia.nombre,
+                "clase_id": nota.horario.clase.id,
+                "horario_id": nota.horario.id,
+                "examenes_prom": ex_prom,
+                "tareas_prom": ta_prom,
+                "asistencia_pct": round(asis_pct*100, 2),
+            })
+
+    # -------- 2. Últimas tareas y exámenes corregidos ----------
+    ultimas_tareas = EntregaTarea.objects.filter(
+        alumno=alumno, estado='calificada'
+    ).select_related('tarea').order_by('-fecha_entrega')[:5]
+
+    ultimos_examenes = ResultadoExamen.objects.filter(
+        alumno=alumno, estado='calificado'
+    ).select_related('examen').order_by('-examen__fecha')[:5]
+
+    from evaluaciones.serializers import EntregaTareaSerializer, ResultadoExamenSerializer
+
+    tareas_serializer = EntregaTareaSerializer(ultimas_tareas, many=True)
+    examenes_serializer = ResultadoExamenSerializer(ultimos_examenes, many=True)
+
+    # -------- 3. Clases de hoy (por horario) ----------
+    # 1. Buscar día de hoy
+    dia_hoy = date.today()
+    nombre_dia = dia_hoy.strftime('%A')
+    nombre_dia_es = {
+        'Monday': 'Lunes', 'Tuesday': 'Martes', 'Wednesday': 'Miercoles', 'Thursday': 'Jueves',
+        'Friday': 'Viernes', 'Saturday': 'Sabado', 'Sunday': 'Domingo'
+    }[nombre_dia]
+
+    # 3. Inscripciones del alumno SOLO en la última gestión
+    inscripciones_ids = Inscripcion.objects.filter(
+        alumno=alumno,
+        clase__gestion=ultima_gestion
+    ).values_list('clase_id', flat=True)
+
+    # 4. Horarios donde hay clase hoy y pertenecen a la gestión actual
+    horarios_hoy = Horario.objects.filter(
+        clase_id__in=inscripciones_ids,
+        horarios_dias__dia__nombre=nombre_dia_es
+    ).distinct().select_related('clase', 'profesor_materia')
+
+    # 5. Serializa y responde
+    from asistencia.serializers import HorarioSerializer
+    horarios_hoy_serializer = HorarioSerializer(horarios_hoy, many=True)
+
+    return Response({
+        "materias_bajo_rendimiento": materias_bajo,
+        "ultimas_tareas": tareas_serializer.data,
+        "ultimos_examenes": examenes_serializer.data,
+        "clases_hoy": horarios_hoy_serializer.data
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+@has_role('tutor')
+def dashboard_tutor(request):
+    user = request.user
+    tutor = user.tutor
+    ml_model = get_ml_model()
+
+    from usuarios.serializers import AlumnoSerializer
+    from evaluaciones.serializers import EntregaTareaSerializer, ResultadoExamenSerializer
+
+    dashboard = []
+    alumnos_ids = Tutoria.objects.filter(tutor=tutor).values_list('alumno', flat=True)
+    for alumno_id in alumnos_ids:
+        alumno = Alumno.objects.get(id=alumno_id)
+        alumno_info = AlumnoSerializer(alumno).data
+
+        # --- Materias en riesgo (ML) ---
+        notas_qs = NotaMateria.objects.filter(alumno=alumno)
+        materias_riesgo = []
+        for nota in notas_qs.select_related('horario__profesor_materia__materia', 'horario__clase'):
+            horario = nota.horario
+            ex_prom = ResultadoExamen.objects.filter(
+                alumno=alumno, examen__clase=horario.clase, examen__profesor_materia=horario.profesor_materia
+            ).aggregate(avg=Avg('nota'))['avg'] or 0
+            ta_prom = EntregaTarea.objects.filter(
+                alumno=alumno, tarea__clase=horario.clase, tarea__profesor_materia=horario.profesor_materia
+            ).aggregate(avg=Avg('nota'))['avg'] or 0
+            asis_total = Asistencia.objects.filter(horario=horario, alumno=alumno).count()
+            asis_present = Asistencia.objects.filter(horario=horario, alumno=alumno, estado='Presente').count()
+            asis_pct = asis_present / asis_total if asis_total else 0
+
+            X = np.array([[ex_prom, ta_prom, asis_pct]])
+            pred = ml_model.predict(X)[0]  # 0: bajo, 1: regular, 2: bueno
+
+            if pred in [0, 1]:
+                materias_riesgo.append({
+                    "materia_id": nota.horario.profesor_materia.materia.id,
+                    "materia": nota.horario.profesor_materia.materia.nombre,
+                    "clase_id": nota.horario.clase.id,
+                    "horario_id": nota.horario.id,
+                    "examenes_prom": ex_prom,
+                    "tareas_prom": ta_prom,
+                    "asistencia_pct": round(asis_pct*100, 2),
+                    "prediccion": "bajo" if pred == 0 else "regular"
+                })
+
+        # --- Últimas notas (tareas y exámenes calificados) ---
+        ultimas_tareas = EntregaTarea.objects.filter(
+            alumno=alumno, estado='calificada'
+        ).select_related('tarea').order_by('-fecha_entrega')[:5]
+        ultimos_examenes = ResultadoExamen.objects.filter(
+            alumno=alumno, estado='calificado'
+        ).select_related('examen').order_by('-examen__fecha')[:5]
+
+        tareas_serializer = EntregaTareaSerializer(ultimas_tareas, many=True)
+        examenes_serializer = ResultadoExamenSerializer(ultimos_examenes, many=True)
+
+        # --- Tareas pendientes (no entregadas o entregadas pero no calificadas) ---
+        tareas_pendientes = EntregaTarea.objects.filter(
+            alumno=alumno
+        ).filter(
+            Q(estado='pendiente') | Q(estado='entregada')
+        ).select_related('tarea').order_by('fecha_entrega')
+
+        tareas_pendientes_serializer = EntregaTareaSerializer(tareas_pendientes, many=True)
+
+        dashboard.append({
+            "alumno": alumno_info,
+            "materias_en_riesgo": materias_riesgo,
+            "ultimas_tareas": tareas_serializer.data,
+            "ultimos_examenes": examenes_serializer.data,
+            "tareas_pendientes": tareas_pendientes_serializer.data
+        })
+
+    return Response({"alumnos": dashboard})

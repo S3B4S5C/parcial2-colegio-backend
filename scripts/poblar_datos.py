@@ -197,6 +197,20 @@ for anio in ANIOS:
                         nota_decidir=round(random.uniform(*RANGO_NOTAS[rendimiento]), 2),
                     )
                 )
+                dias_generados = 0
+                dia_actual = date(anio, (trimestre - 1) * 4 + 1, 1)  # Ejemplo de inicio de trimestre
+                while dias_generados < 60:  # 60 asistencias
+                    if dia_actual.weekday() < 5:  # Solo lunes a viernes
+                        presente = random.random() < ASISTENCIA_PROB[rendimiento]
+                        estado = 'Presente' if presente else 'Ausente'
+                        asistencias_bulk.append(Asistencia(
+                            horario=horario,
+                            alumno=alumno,
+                            fecha=dia_actual,
+                            estado=estado
+                        ))
+                        dias_generados += 1
+                    dia_actual += timedelta(days=1)
 
             for tarea in [t for t in tareas_all if t.clase_id == ins.clase_id]:
                 nota = round(random.uniform(*RANGO_NOTAS[rendimiento]), 2)
@@ -257,3 +271,5 @@ for anio in ANIOS:
                 retirados.add(alumno.id)
 
 print("Datos poblados exitosamente.")
+
+# exec(open('scripts/poblar_datos.py').read())
