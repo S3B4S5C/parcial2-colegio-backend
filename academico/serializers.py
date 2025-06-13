@@ -3,7 +3,7 @@ from usuarios.models import Alumno, Profesor
 from .models import Materia, AsignacionProfesorMateria, Gestion, Curso, Clase, Inscripcion
 from usuarios.serializers import ProfesorSerializer, AlumnoSerializer
 from .models import NotaMateria
-from asistencia.serializers import HorarioSerializer
+from asistencia.serializers import HorarioSerializer, HorarioMiniSerializer
 
 # Materia
 class MateriaSerializer(serializers.ModelSerializer):
@@ -39,6 +39,19 @@ class ClaseSerializer(serializers.ModelSerializer):
     curso_info = CursoSerializer(source='curso', read_only=True)
     gestion_info = GestionSerializer(source='gestion', read_only=True)
     horarios = HorarioSerializer(many=True, read_only=True)
+
+    curso = serializers.PrimaryKeyRelatedField(queryset=Curso.objects.all(), write_only=True)
+    gestion = serializers.PrimaryKeyRelatedField(queryset=Gestion.objects.all(), write_only=True)
+
+    class Meta:
+        model = Clase
+        fields = ['id', 'curso', 'gestion', 'curso_info', 'gestion_info', 'paralelo', 'horarios']
+
+
+class ClasesSerializer(serializers.ModelSerializer):
+    curso_info = CursoSerializer(source='curso', read_only=True)
+    gestion_info = GestionSerializer(source='gestion', read_only=True)
+    horarios = HorarioMiniSerializer(many=True, read_only=True)
 
     curso = serializers.PrimaryKeyRelatedField(queryset=Curso.objects.all(), write_only=True)
     gestion = serializers.PrimaryKeyRelatedField(queryset=Gestion.objects.all(), write_only=True)

@@ -10,6 +10,7 @@ from rest_framework import viewsets
 from drf_yasg.utils import swagger_auto_schema
 from academico.models import Materia, Gestion
 import joblib
+from asistencia.models import Horario
 
 class UsuarioViewSet(viewsets.ModelViewSet):
     """API CRUD para usuarios generales."""
@@ -68,6 +69,13 @@ def LoginView(request):
     serializer = LoginSerializer(data=request.data)
     if serializer.is_valid():
         user = serializer.validated_data['user']
+        
+        # <--- NUEVO: guarda el fb_token si llega
+        fb_token = request.data.get('fb_token', None)
+        if fb_token is not None:
+            user.fb_token = fb_token
+            user.save(update_fields=['fb_token'])
+        
         tokens = get_tokens_for_user(user)
         user_data = UsuarioSerializer(user).data
         return Response({
@@ -75,7 +83,6 @@ def LoginView(request):
             'tokens': tokens
         }, status=status.HTTP_200_OK)
     return Response(serializer.errors, status=status.HTTP_401_UNAUTHORIZED)
-
 
 @swagger_auto_schema(
     method='post',
@@ -132,6 +139,7 @@ def RegisterAlumnoView(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsAdminUser])
 def get_alumnos(request):
+
     """
     Endpoint para obtener todos los alumnos registrados en el sistema.
     Solo accesible por administradores.
@@ -139,3 +147,36 @@ def get_alumnos(request):
     alumnos = Alumno.objects.all().select_related('usuario')
     serializer = AlumnoSerializer(alumnos, many=True)
     return Response(serializer.data, status=status.HTTP_200_OK)
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def alumnos_by_horario(request, horario_id=None):
+    """
+    Devuelve los alumnos inscritos en la clase de este horario.
+    Si no se pasa horario_id, busca el horario más reciente ASOCIADO AL PROFESOR AUTENTICADO.
+    """
+    user = request.user
+
+    if horario_id:
+        try:
+            horario = Horario.objects.select_related("clase").get(pk=horario_id)
+        except Horario.DoesNotExist:
+            return Response({"detail": "Horario no encontrado."}, status=404)
+    else:
+        # Busca el último horario del profesor autenticado
+        try:
+            profesor = user.profesor
+        except AttributeError:
+            return Response({"detail": "Solo los profesores pueden usar esta función por defecto."}, status=403)
+        horario = (
+            Horario.objects
+            .filter(profesor_materia__profesor=profesor)
+            .select_related("clase")
+            .order_by("-id")
+            .first()
+        )
+        if not horario:
+            return Response({"detail": "No hay horarios asociados a este profesor."}, status=404)
+
+    alumnos = Alumno.objects.filter(inscripciones__clase=horario.clase).distinct()[0:10]
+    return Response(AlumnoSerializer(alumnos, many=True).data)

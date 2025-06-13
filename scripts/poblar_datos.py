@@ -12,7 +12,7 @@ from asistencia.models import Asistencia
 User = get_user_model()
 
 # ---------- CONFIGURACIÓN ----------
-ANIOS = list(range(2023, 2025))
+ANIOS = list(range(2024, 2025))
 TRIMESTRES = [1, 2, 3]
 PARALELOS = ['A', 'B', 'C']
 CURSOS = [1, 2, 3, 4, 5, 6]

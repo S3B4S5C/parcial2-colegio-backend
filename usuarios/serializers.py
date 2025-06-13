@@ -76,6 +76,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 class LoginSerializer(serializers.Serializer):
     username = serializers.CharField()
     password = serializers.CharField(write_only=True)
+    fb_token = serializers.CharField(required=False, allow_blank=True)
     user = UsuarioSerializer(read_only=True)
 
     def validate(self, data):
@@ -86,4 +87,3 @@ class LoginSerializer(serializers.Serializer):
             raise serializers.ValidationError('La cuenta está desactivada')
         data['user'] = user
         return data
-

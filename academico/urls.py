@@ -4,6 +4,7 @@ from django.conf.urls import include
 from .views import (
     get_notas_by_alumno,
     get_my_alumnos,
+    perfil_alumno,
     registrar_notas,
     mis_notas,
     asignar_profesor_materia_a_clase,
@@ -17,11 +18,14 @@ from .views import (
     dashboard_estudiante,
     dashboard_profesor,
     dashboard_tutor,
+    alumnos_by_horario,
+    notas_by_horario,
     CursoViewSet,
     GestionViewSet,
     ClaseViewSet,
     MateriaViewSet,
-    AsignacionProfesorMateriaViewSet
+    AsignacionProfesorMateriaViewSet,
+    InscripcionViewSet
 )
 
 
@@ -31,6 +35,7 @@ router.register(r'gestiones', GestionViewSet)
 router.register(r'clases', ClaseViewSet)
 router.register(r'materias', MateriaViewSet)
 router.register(r'asignaciones', AsignacionProfesorMateriaViewSet)
+router.register(r'inscripciones', InscripcionViewSet)
 
 urlpatterns = [
     path('notas/<int:alumno_id>/', get_notas_by_alumno, name='notas'),
@@ -48,5 +53,9 @@ urlpatterns = [
     path('dashboard-alumno/', dashboard_estudiante, name='dashboard-alumno'),
     path('dashboard-profesor/', dashboard_profesor, name='dashboard-profesor'),
     path('dashboard-tutor/', dashboard_tutor, name='dashboard-tutor'),
+    path('perfil-alumno/<int:alumno_id>/', perfil_alumno, name='perfil-alumno'),
+    path('alumnos-by-horario/<int:horario_id>/', alumnos_by_horario, name='alumnos-by-horario'),
+    path('notas-by-horario/<int:horario_id>/', notas_by_horario, name='notas-by-horario'),
+    path('registrar-notas/<int:horario_id>/', registrar_notas, name='registrar-notas'),
     path('', include(router.urls)),
 ]
