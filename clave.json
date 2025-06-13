@@ -1,7 +1,4 @@
-import firebase_admin
-from firebase_admin import credentials, messaging
-
-cred = credentials.Certificate({
+{
   "type": "service_account",
   "project_id": "colegio-cddad",
   "private_key_id": "fc81dd26181748b660bbdffec5469c1191df6d08",
@@ -13,38 +10,4 @@ cred = credentials.Certificate({
   "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
   "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fbsvc%40colegio-cddad.iam.gserviceaccount.com",
   "universe_domain": "googleapis.com"
-})
-try:
-    firebase_admin.get_app()
-except ValueError:
-    firebase_admin.initialize_app(cred)
-
-def enviar_notificaciones_fb(tokens, titulo, cuerpo):
-    """
-    Envía una notificación push a cada token de la lista.
-
-    tokens: lista de fb_token (str)
-    titulo: título de la notificación
-    cuerpo: contenido de la notificación
-    """
-    exitos = 0
-    errores = 0
-    for token in tokens:
-        try:
-            message = messaging.Message(
-                token=token,
-                notification=messaging.Notification(
-                    title=titulo,
-                    body=cuerpo
-                ),
-                android=messaging.AndroidConfig(priority='high'),
-                apns=messaging.APNSConfig(headers={"apns-priority": "10"}),
-                webpush=messaging.WebpushConfig(headers={"Urgency": "high"}),
-            )
-            response = messaging.send(message)
-            print(f"Notificación enviada a {token}: {response}")
-            exitos += 1
-        except Exception as e:
-            print(f"Error enviando a {token}: {e}")
-            errores += 1
-    print(f"Enviadas {exitos} notificaciones. Errores: {errores}")
+}

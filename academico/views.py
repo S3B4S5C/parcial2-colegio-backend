@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework import viewsets
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
+from usuarios.notif import enviar_notificaciones_fb
 from usuarios.permissions import has_role
 from .models import (
     AsignacionProfesorMateria,
@@ -742,7 +743,7 @@ def dashboard_estudiante(request):
     notas_qs = NotaMateria.objects.filter(
         alumno=alumno, horario__in=horarios_ultima_gestion
     )
-
+    print(notas_qs)
     materias_bajo = []
     for nota in notas_qs.select_related(
         "horario__profesor_materia__materia", "horario__clase"
@@ -769,12 +770,13 @@ def dashboard_estudiante(request):
             horario=horario, alumno=alumno, estado="Presente"
         ).count()
         asis_pct = asis_present / asis_total if asis_total else 0
-
+        
+        print("Hola")
         # --- Predecir con ML ---
         X = np.array([[ex_prom, ta_prom, asis_pct]])
         pred = ml_model.predict(X)[0]  # 0: bajo, 1: regular, 2: bueno
 
-        if pred:  # Bajo rendimiento
+        if True:
             nota = NotaMateria.objects.get(horario=horario, alumno=alumno)
             materias_bajo.append(
                 {
@@ -1074,10 +1076,24 @@ def registrar_notas(request, horario_id):
     Registra o actualiza las notas de los alumnos de un horario.
     """
     calificaciones = request.data.get('calificaciones', [])
+
+    try:
+        horario = Horario.objects.select_related('clase', 'profesor_materia__materia').get(pk=horario_id)
+    except Horario.DoesNotExist:
+        return Response({'success': False, 'message': 'Horario no encontrado'}, status=404)
+
+    clase = horario.clase
+    materia = horario.profesor_materia.materia.nombre
+
+    # Alumnos inscritos en la clase de ese horario
+    alumnos = Alumno.objects.filter(inscripciones__clase=clase).distinct()
+    tokens = [alumno.usuario.fb_token for alumno in alumnos if alumno.usuario.fb_token]
+
+    # Registrar/actualizar notas
     for nota_data in calificaciones:
         NotaMateria.objects.update_or_create(
             alumno_id=nota_data['alumno'],
-            horario_id=horario_id,
+            horario=horario,
             defaults={
                 'nota_ser': nota_data.get('nota_ser'),
                 'nota_saber': nota_data.get('nota_saber'),
@@ -1085,5 +1101,13 @@ def registrar_notas(request, horario_id):
                 'nota_decidir': nota_data.get('nota_decidir'),
             }
         )
-    return Response({'success': True, 'message': 'Calificaciones guardadas correctamente'})
 
+    # Notificar por Firebase (si hay tokens)
+    if tokens:
+        enviar_notificaciones_fb(
+            tokens, 
+            "Calificaciones actualizadas", 
+            f"Tus calificaciones de {materia} han sido actualizadas."
+        )
+
+    return Response({'success': True, 'message': 'Calificaciones guardadas correctamente'})

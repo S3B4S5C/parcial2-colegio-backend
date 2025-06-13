@@ -40,3 +40,15 @@ class ResultadoExamenSerializer(serializers.ModelSerializer):
     class Meta:
         model = ResultadoExamen
         fields = ['id', 'examen', 'alumno', 'nota', 'estado', 'observacion']
+
+
+
+class CrearTareaSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Tarea
+        fields = ['profesor_materia', 'clase', 'titulo', 'descripcion', 'fecha_entrega', 'fecha_limite']
+
+class CrearExamenSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Examen
+        fields = ['profesor_materia', 'clase', 'titulo', 'descripcion', 'fecha']
